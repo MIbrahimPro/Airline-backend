@@ -43,8 +43,10 @@ router.get('/verify', (req, res) => {
     console.log("token " + token);
 
     try {
+
         const payload = jwt.verify(token, process.env.JWT_SECRET);
-        console.log("payload" + payload);
+        console.log("payload:", JSON.stringify(payload, null, 2));
+        // console.log("payload" + payload);
 
         return res.json({ valid: true });
     } catch {

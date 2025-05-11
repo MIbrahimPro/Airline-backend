@@ -37,6 +37,14 @@ const storageAirlines = multer.diskStorage({
 const uploadAirlines = multer({ storage: storageAirlines });
 
 // POST /api/upload/locations -> locations images
+router.post('/', uploadLocations.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  res.json({ imageUrl: `/uploads/locations/${req.file.filename}` });
+});
+
+// POST /api/upload/locations -> locations images
 router.post('/locations', uploadLocations.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
