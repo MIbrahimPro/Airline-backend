@@ -19,10 +19,6 @@ const QuoteRoutes = require('./routes/quote');
 const uploadRoute = require('./routes/upload');
 
 
-// const rateLimiter = require('./middlewares/rateLimiter');
-// const auth = require('./middlewares/auth');
-
-
 //=========================================================================
 //=========================================================================
 
@@ -31,10 +27,10 @@ const app = express();
 connectDB();
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-// app.set('trust proxy', true);
 
 
 //=========================================================================
+
 
 app.use('/api/region',   regionRoutes);
 app.use('/api/country',  countryRoutes);
@@ -52,9 +48,16 @@ app.use('/api/upload', uploadRoute);
 
 //=========================================================================
 
-app.get('/', (req, res) => {
-    res.send('API is running...');
-});
+
+const buildPath = path.join(__dirname, 'build');
+app.use(express.static(buildPath));
+
+
+//=========================================================================
+
+// app.get('/', (req, res) => {
+//     res.send('API is running...');
+// });
 // app.get('*', (req, res) => {
 //     res.send('404 not found...');
 // });
