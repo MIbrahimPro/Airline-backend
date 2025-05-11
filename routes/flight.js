@@ -413,11 +413,13 @@ router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
 
 // DELETE (admin)
 router.delete('/:id', authenticate, authorizeAdmin, async (req, res) => {
+
     console.log(req.params.id)
     const f = await Flight.findByIdAndDelete(req.params.id);
     if (!f) return res.status(404).json({ message: 'Not found' });
     console.log("deleted");
-    res.json({ message: 'Deleted' });
+    res.status(200).json({ message: 'Deleted' });
+
 });
 
 
