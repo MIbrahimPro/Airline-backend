@@ -1,17 +1,17 @@
 
 
 const express = require('express');
-const path    = require('path');
+const path = require('path');
 const connectDB = require('./config/db');
 
 
-const regionRoutes   = require('./routes/region');
-const countryRoutes  = require('./routes/country');
+const regionRoutes = require('./routes/region');
+const countryRoutes = require('./routes/country');
 const locationRoutes = require('./routes/location');
-const airportRoutes  = require('./routes/airport');
-const airlineRoutes  = require('./routes/airline');
-const flightRoutes   = require('./routes/flight');
-const bookingRoutes  = require('./routes/booking');
+const airportRoutes = require('./routes/airport');
+const airlineRoutes = require('./routes/airline');
+const flightRoutes = require('./routes/flight');
+const bookingRoutes = require('./routes/booking');
 const siteInfoRoutes = require('./routes/siteInfo');
 const authRoutes = require('./routes/auth');
 const ContactRoutes = require('./routes/contact');
@@ -32,13 +32,13 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 //=========================================================================
 
 
-app.use('/api/region',   regionRoutes);
-app.use('/api/country',  countryRoutes);
+app.use('/api/region', regionRoutes);
+app.use('/api/country', countryRoutes);
 app.use('/api/location', locationRoutes);
-app.use('/api/airport',  airportRoutes);
-app.use('/api/airline',  airlineRoutes);
-app.use('/api/flight',   flightRoutes);
-app.use('/api/booking',  bookingRoutes);
+app.use('/api/airport', airportRoutes);
+app.use('/api/airline', airlineRoutes);
+app.use('/api/flight', flightRoutes);
+app.use('/api/booking', bookingRoutes);
 app.use('/api/siteinfo', siteInfoRoutes);
 app.use('/api/contact', ContactRoutes);
 app.use('/api/quote', QuoteRoutes);
@@ -51,6 +51,10 @@ app.use('/api/upload', uploadRoute);
 
 const buildPath = path.join(__dirname, 'build');
 app.use(express.static(buildPath));
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'));
+});
 
 
 //=========================================================================
