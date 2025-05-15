@@ -27,7 +27,16 @@ const FAQItem = new mongoose.Schema({
 
 }, { _id: false });
 
+const BookingItem = new mongoose.Schema({
+  subheading: { type: String, required: true, trim: true },
+  text:       { type: String, required: true, trim: true, validate: { validator: function(array) { return array && array.length > 0; }, message: 'At least one item is required in the items array.'} }
+}, { _id: false });
 
+const BookInfo = new mongoose.Schema({
+  heading: { type: String, required: true, trim: true },
+  text:    { type: String, required: true, trim: true },
+  items:   { type: [BookingItem], default: [] }
+}, { _id: false });
 
 //==============================================main modules==============================================
 
@@ -49,7 +58,9 @@ const SiteInfoSchema = new mongoose.Schema({
     aboutUsLong:    { type: String,                                    default: '' },
     
     faq:            { type: [FAQItem],                                 default: [] },
-    privacyPolicy:  { type: [Section],                                 default: [] }
+    privacyPolicy:  { type: [Section],                                 default: [] },
+
+    booking:        { type: BookInfo,  required: true }
 
 }, { timestamps: true });
 

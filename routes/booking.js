@@ -8,17 +8,13 @@ const Flight = require('../models/Flight');
 const Airport = require('../models/Airport');
 const Airline = require('../models/Airline');
 const { authenticate, authorizeAdmin } = require('../middlewares/auth');
-const emailjs = require('emailjs-com');
 
+const transporter = require('../utils/mailer');
 
 const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
 ];
-const {
-    EMAILJS_TEMPLATE_BOOKING_ADMIN,
-    EMAILJS_TEMPLATE_BOOKING_USER
-} = process.env;
 
 
 
@@ -83,87 +79,87 @@ router.get('/', authenticate, authorizeAdmin, async (req, res) => {
 
 router.get('/filter', authenticate, authorizeAdmin, async (req, res) => {
     try {
-      let {
-        airline,
-        departureAirport,
-        arrivalAirport,
-        state,
-        page = 1,
-        limit = 10
-      } = req.query;
-  
-      // Normalize query parameters
-      const airlines = Array.isArray(airline)
-        ? airline.map(a => a.trim()).filter(Boolean)
-        : airline
-        ? [airline.trim()]
-        : [];
-  
-      departureAirport = departureAirport?.trim() || undefined;
-      arrivalAirport = arrivalAirport?.trim() || undefined;
-      state = state?.trim() || undefined;
-  
-      // Build flight-level filters
-      const flightFilter = {};
-      if (airlines.length) flightFilter.airline = { $in: airlines };
-      if (departureAirport) flightFilter.departureAirport = departureAirport;
-      if (arrivalAirport) flightFilter.arrivalAirport = arrivalAirport;
-  
-      // Initialize booking filter
-      const filter = {};
-  
-      if (Object.keys(flightFilter).length) {
-        const matchingFlights = await Flight.find(flightFilter, '_id');
-        const flightIds = matchingFlights.map(f => f._id);
-        if (!flightIds.length) {
-          return res.json({
-            currentPage: parseInt(page, 10),
-            totalPages: 0,
-            totalDocuments: 0,
-            results: []
-          });
+        let {
+            airline,
+            departureAirport,
+            arrivalAirport,
+            state,
+            page = 1,
+            limit = 10
+        } = req.query;
+
+        // Normalize query parameters
+        const airlines = Array.isArray(airline)
+            ? airline.map(a => a.trim()).filter(Boolean)
+            : airline
+                ? [airline.trim()]
+                : [];
+
+        departureAirport = departureAirport?.trim() || undefined;
+        arrivalAirport = arrivalAirport?.trim() || undefined;
+        state = state?.trim() || undefined;
+
+        // Build flight-level filters
+        const flightFilter = {};
+        if (airlines.length) flightFilter.airline = { $in: airlines };
+        if (departureAirport) flightFilter.departureAirport = departureAirport;
+        if (arrivalAirport) flightFilter.arrivalAirport = arrivalAirport;
+
+        // Initialize booking filter
+        const filter = {};
+
+        if (Object.keys(flightFilter).length) {
+            const matchingFlights = await Flight.find(flightFilter, '_id');
+            const flightIds = matchingFlights.map(f => f._id);
+            if (!flightIds.length) {
+                return res.json({
+                    currentPage: parseInt(page, 10),
+                    totalPages: 0,
+                    totalDocuments: 0,
+                    results: []
+                });
+            }
+            filter.flight = { $in: flightIds };
         }
-        filter.flight = { $in: flightIds };
-      }
-  
-      if (state) filter.state = state;
-  
-      // Pagination
-      const skip = (page - 1) * limit;
-      const [docs, totalDocuments] = await Promise.all([
-        Booking.find(filter)
-          .skip(skip)
-          .limit(parseInt(limit, 10))
-          .populate({
-            path: 'flight',
-            populate: ['departureAirport', 'arrivalAirport', 'airline']
-          }),
-        Booking.countDocuments(filter)
-      ]);
-  
-      // Format dates
-      const results = docs.map(b => {
-        const o = b.toObject();
-        o.departureDate = o.departureDate.toISOString().split('T')[0];
-        o.returnDate = o.returnDate.toISOString().split('T')[0];
-        return o;
-      });
-  
-      const totalPages = Math.ceil(totalDocuments / limit);
-  
-      return res.json({
-        currentPage: parseInt(page, 10),
-        totalPages,
-        totalDocuments,
-        results
-      });
+
+        if (state) filter.state = state;
+
+        // Pagination
+        const skip = (page - 1) * limit;
+        const [docs, totalDocuments] = await Promise.all([
+            Booking.find(filter)
+                .skip(skip)
+                .limit(parseInt(limit, 10))
+                .populate({
+                    path: 'flight',
+                    populate: ['departureAirport', 'arrivalAirport', 'airline']
+                }),
+            Booking.countDocuments(filter)
+        ]);
+
+        // Format dates
+        const results = docs.map(b => {
+            const o = b.toObject();
+            o.departureDate = o.departureDate.toISOString().split('T')[0];
+            o.returnDate = o.returnDate.toISOString().split('T')[0];
+            return o;
+        });
+
+        const totalPages = Math.ceil(totalDocuments / limit);
+
+        return res.json({
+            currentPage: parseInt(page, 10),
+            totalPages,
+            totalDocuments,
+            results
+        });
     } catch (err) {
-      console.error('Error fetching filtered bookings:', err);
-      return res.status(500).json({ message: 'Server error' });
+        console.error('Error fetching filtered bookings:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-  });
-  
-  
+});
+
+
 router.get('/analytics', authenticate, authorizeAdmin, async (req, res) => {
     try {
         const now = new Date();
@@ -386,7 +382,112 @@ router.post('/', async (req, res) => {
             state: req.body.state || 'pending',
             notes: req.body.notes || ''
         });
-        const site = await SiteInfo.findOne();
+
+
+
+
+
+
+
+
+
+
+        const flight = await Flight.findById(flightId)
+            .populate('departureAirport', 'name')
+            .populate('arrivalAirport', 'name');
+
+        // Format dates: DD MMMM YYYY
+        const formatOpts = { day: '2-digit', month: 'long', year: 'numeric' };
+        const depStr = new Date(dep).toLocaleDateString('en-GB', formatOpts);
+        const retStr = new Date(ret).toLocaleDateString('en-GB', formatOpts);
+
+        // Fetch contact info
+        const site = await SiteInfo.findOne().lean() || {};
+        const adminEmail = process.env.EMAIL_USER;
+
+        // — Notify Admin (plain text)
+        await transporter.sendMail({
+            from: `"Booking System" <${process.env.EMAIL_USER}>`,
+            to: adminEmail,
+            subject: '🛫 New Booking Received',
+            text: `
+New booking by ${customerName}
+
+Flight: ${flight.departureAirport.name} → ${flight.arrivalAirport.name}
+Trip dates: ${depStr} – ${retStr}
+Passengers: Adults ${adults}, Children ${children}, Infants ${infants}
+Price: ${initialBookingPrice.toFixed(2)}
+
+Contact: ${contactPhone} (${contactPreference})
+Details: ${extraDetails}
+      `.trim()
+        });
+
+        // — Confirmation to Customer (styled HTML)
+        const html = `
+    <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#333;">
+      <h1 style="background:#0066cc;color:#fff;padding:15px;border-radius:4px;text-align:center;">
+        Booking Confirmed!
+      </h1>
+
+      <p>Hi <strong>${customerName}</strong>,</p>
+      <p>Thanks for booking with us. Here are your trip details:</p>
+
+      <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+        <tr>
+          <td style="padding:8px;border:1px solid #ddd;"><strong>Route</strong></td>
+          <td style="padding:8px;border:1px solid #ddd;">
+            ${flight.departureAirport.name} → ${flight.arrivalAirport.name}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border:1px solid #ddd;"><strong>Departure</strong></td>
+          <td style="padding:8px;border:1px solid #ddd;">${depStr}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border:1px solid #ddd;"><strong>Return</strong></td>
+          <td style="padding:8px;border:1px solid #ddd;">${retStr}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border:1px solid #ddd;"><strong>Passengers</strong></td>
+          <td style="padding:8px;border:1px solid #ddd;">
+            Adults: ${adults}, Children: ${children}, Infants: ${infants}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border:1px solid #ddd;"><strong>Price</strong></td>
+          <td style="padding:8px;border:1px solid #ddd;">USD ${initialBookingPrice.toFixed(2)}</td>
+        </tr>
+      </table>
+
+      <p style="margin:20px 0;">If you have any questions, reach us at:</p>
+      <p>
+        ✉️ <a href="mailto:${site.contactEmail}">${site.contactEmail}</a><br/>
+        📞 <a href="tel:${site.contactPhone}">${site.contactPhone}</a><br/>
+        💬 <a href="https://wa.me/${site.contactWA.replace(/\D/g, '')}">${site.contactWA}</a>
+      </p>
+
+      <p style="margin-top:30px;color:#777;font-size:0.9em;">
+        We look forward to making your journey unforgettable!
+      </p>
+    </div>
+    `;
+        await transporter.sendMail({
+            from: `"Flyva Support" <${process.env.EMAIL_USER}>`,
+            to: userEmail,
+            subject: 'Your Booking Details',
+            html
+        });
+
+
+
+
+
+
+
+
+
+
 
         return res.status(201).json(booking);
     } catch (err) {
@@ -425,7 +526,7 @@ router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
 
         // flight update
         const { departureCode, arrivalCode, airlineShortName } = req.body;
-       
+
 
         if (departureCode || arrivalCode || airlineShortName) {
             try {

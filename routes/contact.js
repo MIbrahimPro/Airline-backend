@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const emailjs = require('emailjs-com');
+const transporter = require('../utils/mailer');  
 
 
 const mongoose = require('mongoose');
@@ -31,7 +32,7 @@ router.get('/', authenticate, authorizeAdmin, async (req, res) => {
 router.post('/', async (req, res) => {
     try {
 
-        console.log("post route");
+        // console.log("post route");
 
 
         const { name, email, phone, message } = req.body;
@@ -41,9 +42,56 @@ router.post('/', async (req, res) => {
         const contact = await Contact.create({ name, email, phone, message });
 
 
+        const site = await SiteInfo.findOne();
+        const adminEmail = process.env.EMAIL_USER;
+        if (adminEmail) {
+            // 3a) notify admin
+            await transporter.sendMail({
+                from: `"Website Contact" <${process.env.EMAIL_USER}>`,
+                to: adminEmail,
+                subject: 'New contact form submission',
+                text: `
+You have a new contact form submission:
+
+Name:    ${name}
+Email:   ${email}
+Phone:   ${phone || '—'}
+Message:
+${message}
+        `.trim()
+            });
+        }
+
+        // 3b) send confirmation to user
+        const html = `
+      <div style="font-family:sans-serif;line-height:1.5;color:#333">
+        <h2 style="color:#0066cc">Hi ${name},</h2>
+        <p>Thank you for reaching out! We’ve received your message and will get back to you as soon as possible.</p>
+        <hr style="border:none;border-top:1px solid #eee"/>
+        <h4 style="margin-bottom:4px;">Your Message:</h4>
+        <p style="background:#f9f9f9;padding:10px;border-radius:4px;">${message}</p>
+        <p style="font-size:0.9em;color:#666">If you need immediate assistance, you can also call us at 
+        <strong>
+         <p>
+          Email: <a href="mailto:${site.contactEmail}">${site.contactEmail}</a><br/>
+          Phone: <a href="tel:${site.contactPhone}">${site.contactPhone}</a><br/>
+          WhatsApp: <a href="https://wa.me/${site.contactWA.replace(/\D/g, '')}">${site.contactWA}</a>
+        </p>
+        </strong>.</p>
+        <p>Cheers,<br/>The Flyva Team</p>
+      </div>
+    `;
+        await transporter.sendMail({
+            from: `"Flyva Support" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: 'We received your message',
+            html
+        });
 
 
-        console.log("post route" + contact);
+        console.log(`Contact saved and emails sent: ${contact._id}`);
+
+        // console.log("post route" + contact);
 
         res.status(201).json(contact);
 

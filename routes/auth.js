@@ -4,10 +4,11 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const SiteInfo = require('../models/SiteInfo');
+const { loginLimiter } = require('../middlewares/ratelimmiter');
 
 
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
 
     const { email, password } = req.body;
 

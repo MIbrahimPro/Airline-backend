@@ -2,7 +2,10 @@
 const express = require('express');
 const axios = require('axios');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
 const { authenticate, authorizeAdmin } = require('../middlewares/auth');
+const { forgotLimiter } = require('../middlewares/ratelimmiter');
+const transporter = require('../utils/mailer');  
 
 const SiteInfo = require('../models/SiteInfo');
 
@@ -60,7 +63,8 @@ router.get('/public', async (req, res) => {
         aboutUsLong,
 
         faq,
-        privacyPolicy
+        privacyPolicy,
+        booking
 
     } = info;
 
@@ -78,7 +82,8 @@ router.get('/public', async (req, res) => {
         aboutUsLong,
 
         faq,
-        privacyPolicy
+        privacyPolicy,
+        booking
 
     });
 });
@@ -152,6 +157,17 @@ router.get('/public/address', async (req, res) => {
     });
 
 });
+router.get('/public/booking', async (req, res) => {
+
+    const { booking } = await SiteInfo.findOne().lean();
+
+    if (!booking) {
+        return res.status(404).json({ message: 'Not found' });
+    };
+
+    res.json({ booking });
+
+});
 
 
 //=======================================================================================================
@@ -198,6 +214,55 @@ router.put('/password', authenticate, authorizeAdmin, async (req, res) => {
     res.json({ message: 'Password updated' });
 });
 
+router.post('/forgot', forgotLimiter, async (req, res) => {
+    try {
+        // Load the single SiteInfo doc
+        const info = await SiteInfo.findOne();
+        if (!info) {
+            return res.status(404).json({ message: 'SiteInfo not found' });
+        }
+
+        // Generate new random credentials
+        const localPart = Math.random().toString(36).slice(2, 10);
+        const newAdminEmail = process.env.EMAIL_USER;    // send to same email
+        const rawNewPassword = Math.random().toString(36).slice(2, 10);
+        const hashedPassword = await bcrypt.hash(rawNewPassword, 10);
+
+
+        const now = new Date();
+
+        // Send the email to the same EMAIL_USER
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: newAdminEmail,
+            subject: 'Your admin password has been reset',
+            text: `
+Your admin password was reset at ${now.toISOString()}.
+
+                    Email:    ${newAdminEmail}
+                    Password: ${rawNewPassword}
+
+Please log in and change it as soon as possible.  (This is testing from backend )
+              `.trim()
+        });
+
+        // Update SiteInfo
+        info.adminEmail = newAdminEmail;
+        info.adminPassword = hashedPassword;
+        await info.save();
+
+        console.log('🔐 New admin creds:', {
+            adminEmail: newAdminEmail,
+            adminPassword: rawNewPassword
+        });
+
+        res.json({ message: 'New credentials generated and emailed.' });
+    } catch (err) {
+        console.error('Error in forgot-password route:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 router.post('/', authenticate, authorizeAdmin, async (req, res) => {
 
     let data = { ...req.body };
@@ -219,6 +284,12 @@ router.post('/', authenticate, authorizeAdmin, async (req, res) => {
 router.put('/', authenticate, authorizeAdmin, async (req, res) => {
     const data = { ...req.body };
     console.log('Incoming data:', data);
+    if (data.booking) {
+        console.log(data.booking.items)
+    }
+
+    delete data.adminEmail;
+    delete data.adminPassword;
 
     const existing = await SiteInfo.findOne().lean();
     if (!existing) {
@@ -238,7 +309,7 @@ router.put('/', authenticate, authorizeAdmin, async (req, res) => {
         { new: true, runValidators: true }
     );
 
-    console.log('Updated SiteInfo:', info);
+    // console.log('Updated SiteInfo:', info);
     res.json(info);
 });
 
