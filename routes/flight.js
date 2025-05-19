@@ -402,6 +402,7 @@ router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
         if (req.body.toDuration) updates.toDuration = req.body.toDuration;
         if (req.body.fromDuration) updates.fromDuration = req.body.fromDuration;
         if (req.body.prices) updates.prices = req.body.prices;
+        if (req.body.stops) updates.stops = req.body.stops;
 
 
         const f = await Flight.findByIdAndUpdate(
