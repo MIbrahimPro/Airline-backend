@@ -153,7 +153,9 @@ router.get('/filter', async (req, res) => {
             airlines: airlines,
 
             depDateStr,
-            arrDateStr
+            arrDateStr,
+
+            direct = false
         } = req.query;
 
         // console.log("\n\n\n\n*************************************\n\n\n\n")
@@ -224,7 +226,8 @@ router.get('/filter', async (req, res) => {
         let flights = await Flight.find({
             ...(depId ? { departureAirport: depId } : {}),
             ...(arrId ? { arrivalAirport: arrId } : {}),
-            ...(airlineIds ? { airline: { $in: airlineIds } } : {})
+            ...(airlineIds ? { airline: { $in: airlineIds } } : {}),
+            ...(direct ? { stops: 0 } : {})
         })
             .populate('departureAirport', 'name code')
             .populate('arrivalAirport', 'name code')
@@ -277,6 +280,7 @@ router.get('/filter', async (req, res) => {
             let ad = arrDateStr
                 ? new Date(arrDateStr)
                 : addMonths(dd, 1);
+
             return {
                 flightId: flight._id,
                 airlineId: flight.airline._id,
@@ -293,6 +297,7 @@ router.get('/filter', async (req, res) => {
                 fromDuration: `${flight.fromDuration.hours}h ${flight.fromDuration.minutes}m`,
                 originalPrice: orig,
                 discount: disc,
+                stops: flight.stops,
                 finalPrice: final,
                 departureDate: {
                     year: dd.getFullYear(),
@@ -309,7 +314,7 @@ router.get('/filter', async (req, res) => {
         });
 
 
-        console.log('results', results);
+        // console.log('results', results);
 
         // console.log("\n\n\n\n*************************************************\n\n\n\n")
 
@@ -319,23 +324,23 @@ router.get('/filter', async (req, res) => {
         // console.log("total dosuments", totalDocuments);
         // console.log("\n\n\n\n*************************************************\n\n\n\n")
 
-        res.json({
-            tripType: type,
-            currentPage: pageNum,
-            totalPages,
-            totalDocuments,
-            results
-        });
+        // res.json({
+        //     tripType: type,
+        //     currentPage: pageNum,
+        //     totalPages,
+        //     totalDocuments,
+        //     results
+        // });
 
-        // setTimeout(() => {
-        //     res.json({
-        //         tripType: type,
-        //         currentPage: pageNum,
-        //         totalPages,
-        //         totalDocuments,
-        //         results
-        //     });
-        // }, 5000);
+        setTimeout(() => {
+            res.json({
+                tripType: type,
+                currentPage: pageNum,
+                totalPages,
+                totalDocuments,
+                results
+            });
+        }, 5000);
 
     } catch (err) {
         console.error(err);
@@ -431,66 +436,41 @@ router.post('/search-or-create', async (req, res) => {
             arrivalCode,
             airlineShortName,
             month,
-            departureAirport,  // <-- new param
-            arrivalAirport,    // <-- new param
-            airline_id         // <-- new param
+            departureAirport,
+            arrivalAirport,
+            airline_id
         } = req.body;
 
-        // 1) Resolve departureAirport document
-        let depDoc;
-        if (departureAirport) {
-            if (!mongoose.isValidObjectId(departureAirport)) {
-                return res.status(400).json({ message: 'Invalid departureAirport id' });
-            }
-            depDoc = await Airport.findById(departureAirport);
-        } else if (departureCode) {
-            depDoc = await Airport.findOne({ code: departureCode.toUpperCase() });
-        }
-        if (!depDoc) {
-            console.log('departure not found:', departureAirport || departureCode);
-            return res.status(400).json({ message: 'Invalid departure airport' });
+        // 1) Resolve departureAirport ID
+        const depId = await resolveAirport(departureAirport, departureCode, 'departure');
+        if (!depId) {
+            return res.status(400).json({ message: 'Departure airport not provided' });
         }
 
-        // 2) Resolve arrivalAirport document
-        let arrDoc;
-        if (arrivalAirport) {
-            if (!mongoose.isValidObjectId(arrivalAirport)) {
-                return res.status(400).json({ message: 'Invalid arrivalAirport id' });
-            }
-            arrDoc = await Airport.findById(arrivalAirport);
-        } else if (arrivalCode) {
-            arrDoc = await Airport.findOne({ code: arrivalCode.toUpperCase() });
-        }
-        if (!arrDoc) {
-            console.log('arrival not found:', arrivalAirport || arrivalCode);
-            return res.status(400).json({ message: 'Invalid arrival airport' });
+        // 2) Resolve arrivalAirport ID
+        const arrId = await resolveAirport(arrivalAirport, arrivalCode, 'arrival');
+        if (!arrId) {
+            return res.status(400).json({ message: 'Arrival airport not provided' });
         }
 
-        // 3) Resolve airline document
-        let alDoc;
-        if (airline_id) {
-            if (!mongoose.isValidObjectId(airline_id)) {
-                return res.status(400).json({ message: 'Invalid airline_id' });
-            }
-            alDoc = await Airline.findById(airline_id);
-        } else if (airlineShortName) {
-            alDoc = await Airline.findOne({ shortName: airlineShortName });
+        // 3) Resolve airline ID(s)
+        let airlineIds = await resolveAirlines(airline_id, airlineShortName);
+        if (!airlineIds || !airlineIds.length) {
+            return res.status(400).json({ message: 'Airline not provided' });
         }
-        if (!alDoc) {
-            console.log('airline not found:', airline_id || airlineShortName);
-            return res.status(400).json({ message: 'Invalid airline' });
-        }
+        // Use the first airline ID (assuming single airline for this route)
+        const airlineId = airlineIds[0];
 
         // 4) Try to find existing flight
         let flight = await Flight.findOne({
-            departureAirport: depDoc._id,
-            arrivalAirport: arrDoc._id,
-            airline: alDoc._id
+            departureAirport: depId,
+            arrivalAirport: arrId,
+            airline: airlineId
         });
 
         let created = false;
         if (!flight) {
-            // build empty 12-month prices
+            // Build empty 12-month prices
             const prices = [
                 'January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December'
@@ -502,12 +482,13 @@ router.post('/search-or-create', async (req, res) => {
             }));
 
             flight = await Flight.create({
-                departureAirport: depDoc._id,
-                arrivalAirport: arrDoc._id,
-                airline: alDoc._id,
+                departureAirport: depId,
+                arrivalAirport: arrId,
+                airline: airlineId,
                 prices,
                 toDuration: { hours: 0, minutes: 1 },
-                fromDuration: { hours: 0, minutes: 1 }
+                fromDuration: { hours: 0, minutes: 1 },
+                stops: 0 // Set stops to 0 by default
             });
             created = true;
         }
@@ -527,7 +508,7 @@ router.post('/search-or-create', async (req, res) => {
         });
     } catch (err) {
         console.error('search-or-create error', err);
-        res.status(500).json({ message: 'Server error' });
+        res.status(400).json({ message: err.message || 'Invalid input' });
     }
 });
 
