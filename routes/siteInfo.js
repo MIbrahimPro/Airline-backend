@@ -223,7 +223,7 @@ router.post('/forgot', forgotLimiter, async (req, res) => {
         }
 
         // Generate new random credentials
-        const localPart = Math.random().toString(36).slice(2, 10);
+        // const localPart = Math.random().toString(36).slice(2, 10);
         const newAdminEmail = process.env.EMAIL_USER;    // send to same email
         const rawNewPassword = Math.random().toString(36).slice(2, 10);
         const hashedPassword = await bcrypt.hash(rawNewPassword, 10);

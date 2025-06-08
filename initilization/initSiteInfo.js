@@ -111,7 +111,7 @@ async function resetSiteInfo() {
             ],
 
             booking: {
-                heading: 'How to Book',
+                heading: 'Buy Now Pay Later',
                 text: 'Follow these simple steps to secure your reservation:',
                 items: [
                     {
