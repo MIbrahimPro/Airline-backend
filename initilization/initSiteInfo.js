@@ -18,11 +18,11 @@ async function resetSiteInfo() {
 
         // Hash sample admin password (only if no admin password exists)
         let adminPasswordHash = existingInfo.adminPassword;
-        if (!adminPasswordHash) {
+        // if (!adminPasswordHash) {
             const rawPass = 'admin123';
             adminPasswordHash = await bcrypt.hash(rawPass, 10);
             console.log('Generated new admin password hash.');
-        }
+        // }
 
         // Merge existing data with default values
         const updatedData = {
