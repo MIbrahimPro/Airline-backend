@@ -325,6 +325,7 @@ function parseLocalDate(dateStr) {
     return new Date(y, m - 1, d);
 }
 
+
 router.post('/', async (req, res) => {
     try {
         const {
@@ -340,24 +341,8 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ message: 'Missing required fields' });
         }
 
-        console.log(departureDate, returnDate)
-
         const dep = parseLocalDate(departureDate);
         const ret = parseLocalDate(returnDate);
-
-        console.log(dep, ret);
-
-        console.log(
-            dep.getFullYear(),
-            dep.getMonth() + 1,
-            dep.getDate(),
-            dep.getHours()
-        );
-
-        if (isNaN(dep) || isNaN(ret) || ret <= dep) {
-            return res.status(400).json({ message: 'Invalid departureDate/returnDate' });
-        }
-
 
         if (isNaN(dep) || isNaN(ret) || ret <= dep) {
             return res.status(400).json({ message: 'Invalid departureDate/returnDate' });
@@ -383,34 +368,25 @@ router.post('/', async (req, res) => {
             notes: req.body.notes || ''
         });
 
-
-
-
-
-
-
-
-
-
         const flight = await Flight.findById(flightId)
             .populate('departureAirport', 'name')
             .populate('arrivalAirport', 'name');
 
-        // Format dates: DD MMMM YYYY
         const formatOpts = { day: '2-digit', month: 'long', year: 'numeric' };
         const depStr = new Date(dep).toLocaleDateString('en-GB', formatOpts);
         const retStr = new Date(ret).toLocaleDateString('en-GB', formatOpts);
 
-        // Fetch contact info
         const site = await SiteInfo.findOne().lean() || {};
         const adminEmail = process.env.EMAIL_USER;
 
-        // — Notify Admin (plain text)
-        await transporter.sendMail({
-            from: `"Booking System" <${process.env.EMAIL_USER}>`,
-            to: adminEmail,
-            subject: '🛫 New Booking Received',
-            text: `
+        // TRY SENDING EMAILS (do not throw if they fail)
+        try {
+            // Notify Admin
+            await transporter.sendMail({
+                from: `"Booking System" <${process.env.EMAIL_USER}>`,
+                to: adminEmail,
+                subject: '🛫 New Booking Received',
+                text: `
 New booking by ${customerName}
 
 Flight: ${flight.departureAirport.name} → ${flight.arrivalAirport.name}
@@ -420,84 +396,80 @@ Price: ${initialBookingPrice.toFixed(2)}
 
 Contact: ${contactPhone} (${contactPreference})
 Details: ${extraDetails}
-      `.trim()
-        });
+                `.trim()
+            });
 
-        // — Confirmation to Customer (styled HTML)
-        const html = `
-    <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#333;">
-      <h1 style="background:#0066cc;color:#fff;padding:15px;border-radius:4px;text-align:center;">
-        Booking Confirmed!
-      </h1>
+            // Confirmation to Customer
+            const html = `
+<div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#333;">
+  <h1 style="background:#0066cc;color:#fff;padding:15px;border-radius:4px;text-align:center;">
+    Booking Confirmed!
+  </h1>
 
-      <p>Hi <strong>${customerName}</strong>,</p>
-      <p>Thanks for booking with us. Here are your trip details:</p>
+  <p>Hi <strong>${customerName}</strong>,</p>
+  <p>Thanks for booking with us. Here are your trip details:</p>
 
-      <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-        <tr>
-          <td style="padding:8px;border:1px solid #ddd;"><strong>Route</strong></td>
-          <td style="padding:8px;border:1px solid #ddd;">
-            ${flight.departureAirport.name} → ${flight.arrivalAirport.name}
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #ddd;"><strong>Departure</strong></td>
-          <td style="padding:8px;border:1px solid #ddd;">${depStr}</td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #ddd;"><strong>Return</strong></td>
-          <td style="padding:8px;border:1px solid #ddd;">${retStr}</td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #ddd;"><strong>Passengers</strong></td>
-          <td style="padding:8px;border:1px solid #ddd;">
-            Adults: ${adults}, Children: ${children}, Infants: ${infants}
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #ddd;"><strong>Price</strong></td>
-          <td style="padding:8px;border:1px solid #ddd;">USD ${initialBookingPrice.toFixed(2)}</td>
-        </tr>
-      </table>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr>
+      <td style="padding:8px;border:1px solid #ddd;"><strong>Route</strong></td>
+      <td style="padding:8px;border:1px solid #ddd;">
+        ${flight.departureAirport.name} → ${flight.arrivalAirport.name}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #ddd;"><strong>Departure</strong></td>
+      <td style="padding:8px;border:1px solid #ddd;">${depStr}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #ddd;"><strong>Return</strong></td>
+      <td style="padding:8px;border:1px solid #ddd;">${retStr}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #ddd;"><strong>Passengers</strong></td>
+      <td style="padding:8px;border:1px solid #ddd;">
+        Adults: ${adults}, Children: ${children}, Infants: ${infants}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #ddd;"><strong>Price</strong></td>
+      <td style="padding:8px;border:1px solid #ddd;">USD ${initialBookingPrice.toFixed(2)}</td>
+    </tr>
+  </table>
 
-      <p style="margin:20px 0;">If you have any questions, reach us at:</p>
-      <p>
-        ✉️ <a href="mailto:${site.contactEmail}">${site.contactEmail}</a><br/>
-        📞 <a href="tel:${site.contactPhone}">${site.contactPhone}</a><br/>
-        💬 <a href="https://wa.me/${site.contactWA.replace(/\D/g, '')}">${site.contactWA}</a>
-      </p>
+  <p style="margin:20px 0;">If you have any questions, reach us at:</p>
+  <p>
+    ✉️ <a href="mailto:${site.contactEmail}">${site.contactEmail}</a><br/>
+    📞 <a href="tel:${site.contactPhone}">${site.contactPhone}</a><br/>
+    💬 <a href="https://wa.me/${site.contactWA?.replace(/\D/g, '')}">${site.contactWA}</a>
+  </p>
 
-      <p style="margin-top:30px;color:#777;font-size:0.9em;">
-        We look forward to making your journey unforgettable!
-      </p>
-    </div>
-    `;
-        await transporter.sendMail({
-            from: `"Flyva Support" <${process.env.EMAIL_USER}>`,
-            to: userEmail,
-            subject: 'Your Booking Details',
-            html
-        });
+  <p style="margin-top:30px;color:#777;font-size:0.9em;">
+    We look forward to making your journey unforgettable!
+  </p>
+</div>
+`;
 
+            await transporter.sendMail({
+                from: `"Flyva Support" <${process.env.EMAIL_USER}>`,
+                to: userEmail,
+                subject: 'Your Booking Details',
+                html
+            });
 
-
-
-
-
-
-
-
-
+        } catch (emailErr) {
+            console.warn('⚠️ Email sending failed:', emailErr.message);
+        }
 
         return res.status(201).json(booking);
     } catch (err) {
         console.error(err);
         return res.status(500).json({ message: 'Server error' });
     }
+});
 
 
-}
-);
+
+
 
 router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
     try {

@@ -31,26 +31,23 @@ router.get('/', authenticate, authorizeAdmin, async (req, res) => {
 // POST /api/contact
 router.post('/', async (req, res) => {
     try {
-
-        // console.log("post route");
-
-
         const { name, email, phone, message } = req.body;
         if (!name || !email || !message) {
             return res.status(400).json({ message: 'name, email, and message are required' });
         }
-        const contact = await Contact.create({ name, email, phone, message });
 
+        const contact = await Contact.create({ name, email, phone, message });
 
         const site = await SiteInfo.findOne();
         const adminEmail = process.env.EMAIL_USER;
+
         if (adminEmail) {
-            // 3a) notify admin
-            await transporter.sendMail({
-                from: `"Website Contact" <${process.env.EMAIL_USER}>`,
-                to: adminEmail,
-                subject: 'New contact form submission',
-                text: `
+            try {
+                await transporter.sendMail({
+                    from: `"Website Contact" <${process.env.EMAIL_USER}>`,
+                    to: adminEmail,
+                    subject: 'New contact form submission',
+                    text: `
 You have a new contact form submission:
 
 Name:    ${name}
@@ -58,11 +55,13 @@ Email:   ${email}
 Phone:   ${phone || '—'}
 Message:
 ${message}
-        `.trim()
-            });
+                    `.trim()
+                });
+            } catch (emailErr) {
+                console.warn('⚠️  Failed to notify admin (contact form):', emailErr.message);
+            }
         }
 
-        // 3b) send confirmation to user
         const html = `
       <div style="font-family:sans-serif;line-height:1.5;color:#333">
         <h2 style="color:#0066cc">Hi ${name},</h2>
@@ -70,31 +69,28 @@ ${message}
         <hr style="border:none;border-top:1px solid #eee"/>
         <h4 style="margin-bottom:4px;">Your Message:</h4>
         <p style="background:#f9f9f9;padding:10px;border-radius:4px;">${message}</p>
-        <p style="font-size:0.9em;color:#666">If you need immediate assistance, you can also call us at 
-        <strong>
-         <p>
+        <p style="font-size:0.9em;color:#666">
           Email: <a href="mailto:${site.contactEmail}">${site.contactEmail}</a><br/>
           Phone: <a href="tel:${site.contactPhone}">${site.contactPhone}</a><br/>
           WhatsApp: <a href="https://wa.me/${site.contactWA.replace(/\D/g, '')}">${site.contactWA}</a>
         </p>
-        </strong>.</p>
         <p>Cheers,<br/>The Flyva Team</p>
       </div>
     `;
-        await transporter.sendMail({
-            from: `"Flyva Support" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: 'We received your message',
-            html
-        });
 
+        try {
+            await transporter.sendMail({
+                from: `"Flyva Support" <${process.env.EMAIL_USER}>`,
+                to: email,
+                subject: 'We received your message',
+                html
+            });
+        } catch (emailErr) {
+            console.warn('⚠️  Failed to send confirmation to user (contact form):', emailErr.message);
+        }
 
-        console.log(`Contact saved and emails sent: ${contact._id}`);
-
-        // console.log("post route" + contact);
-
+        console.log(`Contact saved and emails attempted: ${contact._id}`);
         res.status(201).json(contact);
-
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });
