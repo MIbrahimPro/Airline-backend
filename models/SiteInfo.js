@@ -1,70 +1,89 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
+// ─── Shared sub‑schemas ──────────────────────────────────────
 
-//===============================================data types===============================================
+const BulletItem = new mongoose.Schema(
+    {
+        text: { type: String, required: true },
+        heading: { type: String },
+    },
+    { _id: false }
+);
 
+const Section = new mongoose.Schema(
+    {
+        heading: { type: String, required: true },
+        text: { type: String, required: true },
+        bullets: { type: [BulletItem], default: [] },
+    },
+    { _id: false }
+);
 
+const FAQItem = new mongoose.Schema(
+    {
+        question: { type: String, required: true },
+        answer: { type: String, required: true },
+    },
+    { _id: false }
+);
 
-const BulletItem = new mongoose.Schema({
-  
-    text:    { type: String, required: true },
-    heading: { type: String                 }
+// ─── Booking info ────────────────────────────────────────────
 
-}, { _id: false });
+const BookingItem = new mongoose.Schema(
+    {
+        subheading: { type: String, required: true, trim: true },
+        text: { type: String, required: true, trim: true },
+    },
+    { _id: false }
+);
 
-const Section = new mongoose.Schema({
+const BookInfo = new mongoose.Schema(
+    {
+        heading: { type: String, required: true, trim: true },
+        text: { type: String, required: true, trim: true },
+        items: { type: [BookingItem], default: [] },
+    },
+    { _id: false }
+);
 
-    heading: { type: String,        required: true                  },
-    text:    { type: String,        required: true                  },
-    bullets: { type: [BulletItem],                      default: [] }
+// ─── About‑us long blocks ─────────────────────────────────────
 
-}, { _id: false });
+const AboutBlock = new mongoose.Schema(
+    {
+        subheading: { type: String }, // optional
+        text: { type: String, required: true, trim: true },
+    },
+    { _id: false }
+);
 
-const FAQItem = new mongoose.Schema({
+// ─── Main SiteInfo ────────────────────────────────────────────
 
-  question: { type: String, required: true },
-  answer:   { type: String, required: true }
+const SiteInfoSchema = new mongoose.Schema(
+    {
+        adminEmail: { type: String, required: true, trim: true },
+        adminPassword: { type: String, required: true, trim: true },
 
-}, { _id: false });
+        contactEmail: { type: String, required: true, trim: true },
+        contactPhone: { type: String, required: true, trim: true },
+        contactWA: { type: String, required: true, trim: true },
 
-const BookingItem = new mongoose.Schema({
-  subheading: { type: String, required: true, trim: true },
-  text:       { type: String, required: true, trim: true, validate: { validator: function(array) { return array && array.length > 0; }, message: 'At least one item is required in the items array.'} }
-}, { _id: false });
+        addressText: { type: String, required: true, trim: true },
+        mapEmbedCode: { type: String, required: true, trim: true },
 
-const BookInfo = new mongoose.Schema({
-  heading: { type: String, required: true, trim: true },
-  text:    { type: String, required: true, trim: true },
-  items:   { type: [BookingItem], default: [] }
-}, { _id: false });
+        aboutInfo: { type: String, required: true, trim: true },
 
-//==============================================main modules==============================================
+        // ← now an array of text‑blocks, each with optional subheading
+        aboutUsLong: { type: [AboutBlock], default: [] },
 
+        faq: { type: [FAQItem], default: [] },
+        privacyPolicy: { type: [Section], default: [] },
 
+        // ← new Terms field, same structure as privacyPolicy
+        terms: { type: [Section], default: [] },
 
-const SiteInfoSchema = new mongoose.Schema({
-  
-    adminEmail:     { type: String,    required: true, trim: true                  },
-    adminPassword:  { type: String,    required: true, trim: true                  },
+        booking: { type: BookInfo, required: true },
+    },
+    { timestamps: true }
+);
 
-    contactEmail:   { type: String,    required: true, trim: true                  },
-    contactPhone:   { type: String,    required: true, trim: true                  },
-    contactWA:      { type: String,    required: true, trim: true                  },
-    
-    addressText:    { type: String,    required: true, trim: true                  },
-    mapEmbedCode:   { type: String,    required: true, trim: true                  },
-    
-    aboutInfo:      { type: String,    required: true, trim: true                  },
-    aboutUsLong:    { type: String,                                    default: '' },
-    
-    faq:            { type: [FAQItem],                                 default: [] },
-    privacyPolicy:  { type: [Section],                                 default: [] },
-
-    booking:        { type: BookInfo,  required: true }
-
-}, { timestamps: true });
-
-
-
-//========================================================================================================
-module.exports = mongoose.model('SiteInfo', SiteInfoSchema);
+module.exports = mongoose.model("SiteInfo", SiteInfoSchema);
